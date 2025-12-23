@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Cleaning Result</title>
+  </head>
+  <body>
+    <h1>Cleaning Completed</h1>
+    <p><a href="{{ url_for('index') }}">Upload another file</a></p>
+    <p><a href="{{ url_for('download', filename=output_filename) }}">Download cleaned CSV</a></p>
+
+    <h2>Agent Execution History</h2>
+    <pre>
+{% for step in history %}
+{{ step | tojson(indent=2) }}
+{% endfor %}
+    </pre>
+  </body>
+</html>
