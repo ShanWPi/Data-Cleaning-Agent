@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Dict, Any, List, Optional
+from etl.llm.json_utils import parse_llm_json
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -18,26 +19,32 @@ ALLOWED_TOOLS = [
     "remove_duplicates",
     "convert_numeric",
     "parse_datetime",
+    "drop_column",
+    "normalize_currency",
+    "normalize_percentage",
 ]
 
 PLAN_SCHEMA_EXAMPLE = {
     "steps": [
         {
             "type": "tool",
-            "name": "clean_column_names",
-            "args": {}
+            "name": "trim_whitespace",
+            "args": {"column": "example_column"}
         }
     ]
 }
 
 # ======================================================
-# PROMPTS
+# SYSTEM PROMPT
 # ======================================================
 
 SYSTEM_PROMPT = """
-You are a data-cleaning planner for a production ETL system. 
+You are a data-cleaning planner for a production ETL system.
 
-STRICT RULES:
+You are given a dataset profiler output.
+The profiler is TRUSTED and FACTUAL.
+
+CRITICAL RULES:
 - Output ONLY valid JSON
 - No explanations
 - No markdown
@@ -46,46 +53,66 @@ STRICT RULES:
 
 YOU MAY ONLY:
 - Select tools from the allowed list
-- Provide COMPLETE arguments for tools
+- Use column names EXACTLY as provided
+- Provide COMPLETE arguments for every tool
 
-DO NOT:
+YOU MUST:
+- Base decisions ONLY on profiler metadata
+- Be conservative and safe
+- Prefer fewer steps over aggressive cleaning
+
+NEVER:
 - Guess column names
-- Repeat failed actions
-- Be aggressive unless justified by metadata
+- Invent columns
+- Repeat failed steps
+- Apply datetime or numeric conversion without strong evidence
 """
+
+# ======================================================
+# USER PROMPT BUILDER
+# ======================================================
 
 def build_user_prompt(
     profile_json: str,
     feedback: Optional[Dict[str, Any]] = None
 ) -> str:
-
     feedback_block = ""
     if feedback:
         feedback_block = f"""
-Previous attempt FAILED.
+PREVIOUS ATTEMPT FAILED.
 
 Failure details:
 {json.dumps(feedback, indent=2)}
 
-Rules:
+STRICT INSTRUCTIONS:
 - Do NOT repeat the failed step
 - Fix missing or incorrect arguments
-- Be more conservative
+- Choose a safer alternative if uncertain
 """
 
     return f"""
-Dataset profile (JSON):
+DATASET PROFILE (JSON):
 {profile_json}
+
+IMPORTANT SEMANTIC RULES (READ CAREFULLY):
+- semantic_type == "index" → drop_column
+- semantic_type == "numeric" → do NOT parse datetime
+- semantic_type == "datetime" → parse_datetime
+- numeric_string_ratio > 0.9 → convert_numeric
+- contains_currency_symbols == true AND semantic_type in ["numeric_like_text", "text"] AND boolean_string_ratio < 0.5 → normalize_currency
+- contains_percentage_symbol == true → normalize_percentage
+- semantic_type in ["text", "categorical"] → trim_whitespace
+- duplicate_rows > 0 → remove_duplicates
 
 {feedback_block}
 
-Allowed tools:
+ALLOWED TOOLS:
 {ALLOWED_TOOLS}
 
-Output schema example:
+OUTPUT FORMAT EXAMPLE:
 {PLAN_SCHEMA_EXAMPLE}
 
-Generate a minimal, safe cleaning plan.
+Generate a minimal, safe, justified cleaning plan.
 """
 
 # ======================================================
@@ -141,11 +168,11 @@ def call_groq(system_prompt: str, user_prompt: str) -> str:
 
 def validate_plan(plan: Dict[str, Any]) -> None:
     if "steps" not in plan or not isinstance(plan["steps"], list):
-        raise ValueError("Plan must contain 'steps' list")
+        raise ValueError("Plan must contain a 'steps' list")
 
     for step in plan["steps"]:
         if step.get("type") != "tool":
-            raise ValueError("Only tool steps allowed")
+            raise ValueError("Only tool steps are allowed")
 
         name = step.get("name")
         args = step.get("args")
@@ -154,11 +181,19 @@ def validate_plan(plan: Dict[str, Any]) -> None:
             raise ValueError(f"Tool not allowed: {name}")
 
         if not isinstance(args, dict):
-            raise ValueError("Args must be a dict")
+            raise ValueError("Tool args must be a dict")
 
-        # if name in {"convert_numeric", "parse_datetime"}:
-        #     if "column" not in args:
-        #         raise ValueError(f"{name} requires 'column'")
+        # Enforce required args
+        if name in {
+            "trim_whitespace",
+            "convert_numeric",
+            "parse_datetime",
+            "drop_column",
+            "normalize_currency",
+            "normalize_percentage",
+        }:
+            if "column" not in args:
+                raise ValueError(f"{name} requires 'column' argument")
 
 # ======================================================
 # PUBLIC API
@@ -175,7 +210,7 @@ def generate_plan(
     llm_output = call_groq(SYSTEM_PROMPT, user_prompt)
 
     try:
-        plan = json.loads(llm_output)
+        plan = parse_llm_json(llm_output)
     except json.JSONDecodeError:
         raise ValueError(f"LLM returned invalid JSON:\n{llm_output}")
 

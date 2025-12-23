@@ -20,7 +20,6 @@ def run_pipeline(
 ) -> Dict[str, Any]:
 
     df_raw, read_meta = read_csv_safe(input_csv_path)
-
     df_current = df_raw.copy()
     history = []
 
@@ -30,17 +29,27 @@ def run_pipeline(
 
         feedback = history[-1] if history else None
         plan = generate_plan(profile, feedback)
+        if not plan["steps"]:
+            return {
+                "status": "success",
+                "iterations": iteration,
+                "plan": plan,
+                "history": history,
+                "read_metadata": read_meta,
+            }
 
         try:
-            df_next = execute_plan(df_current, plan)
-            validate_transformation(df_current, df_next)
+            result = execute_plan(df_current, plan, profile)
+            df_next = result["df"]
 
+            validate_transformation(df_current, df_next, plan)
             df_next.to_csv(output_csv_path, index=False)
 
             history.append({
                 "iteration": iteration,
                 "status": "success",
-                "plan": plan
+                "plan": plan,
+                "execution_log": result["log"],
             })
 
             return {
@@ -48,7 +57,7 @@ def run_pipeline(
                 "iterations": iteration,
                 "plan": plan,
                 "history": history,
-                "read_metadata": read_meta
+                "read_metadata": read_meta,
             }
 
         except Exception as e:
@@ -56,12 +65,12 @@ def run_pipeline(
                 "iteration": iteration,
                 "status": "failed",
                 "error": str(e),
-                "plan": plan
+                "plan": plan,
             })
 
             profile["last_failure"] = {
                 "error": str(e),
-                "failed_plan": plan
+                "failed_plan": plan,
             }
 
     raise PipelineError("Agent failed to converge after max iterations")

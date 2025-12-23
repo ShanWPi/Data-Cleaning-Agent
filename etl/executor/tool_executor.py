@@ -1,7 +1,8 @@
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from etl.transform import cleaners
+from etl.executor.safety import is_tool_safe
 
 
 # 🔒 Tool registry (single source of truth)
@@ -12,6 +13,9 @@ TOOL_REGISTRY = {
     "remove_duplicates": cleaners.remove_duplicates,
     "convert_numeric": cleaners.convert_numeric,
     "parse_datetime": cleaners.parse_datetime,
+    "drop_column": cleaners.drop_column,
+    "normalize_currency": cleaners.normalize_currency,
+    "normalize_percentage": cleaners.normalize_percentage,
 }
 
 
@@ -21,14 +25,26 @@ class ToolExecutionError(Exception):
 
 def execute_tool_step(
     df: pd.DataFrame,
-    step: Dict[str, Any]
+    step: Dict[str, Any],
+    profile: Dict[str, Any],
+    execution_log: List[Dict[str, Any]],
 ) -> pd.DataFrame:
     """
-    Executes a single tool step on the dataframe.
+    Executes a single tool step with safety checks.
     """
 
     tool_name = step.get("name")
     args = step.get("args", {})
+
+    # Safety check
+    safe, reason = is_tool_safe(df, step, profile)
+    if not safe:
+        execution_log.append({
+            "step": step,
+            "status": "skipped",
+            "reason": reason,
+        })
+        return df
 
     if tool_name not in TOOL_REGISTRY:
         raise ToolExecutionError(f"Tool not registered: {tool_name}")
@@ -36,8 +52,19 @@ def execute_tool_step(
     tool_fn = TOOL_REGISTRY[tool_name]
 
     try:
-        return tool_fn(df, **args)
+        new_df = tool_fn(df, **args)
+        execution_log.append({
+            "step": step,
+            "status": "success",
+        })
+        return new_df
+
     except Exception as e:
+        execution_log.append({
+            "step": step,
+            "status": "failed",
+            "error": str(e),
+        })
         raise ToolExecutionError(
             f"Error executing tool '{tool_name}': {e}"
         ) from e
@@ -45,16 +72,18 @@ def execute_tool_step(
 
 def execute_plan(
     df: pd.DataFrame,
-    plan: Dict[str, Any]
-) -> pd.DataFrame:
+    plan: Dict[str, Any],
+    profile: Dict[str, Any],
+) -> Dict[str, Any]:
     """
-    Executes all tool steps in sequence.
+    Executes all tool steps in sequence with safety checks.
     """
 
     if "steps" not in plan:
         raise ToolExecutionError("Plan has no steps")
 
     current_df = df.copy()
+    execution_log: List[Dict[str, Any]] = []
 
     for idx, step in enumerate(plan["steps"], start=1):
         if step.get("type") != "tool":
@@ -62,6 +91,11 @@ def execute_plan(
                 f"Step {idx}: only tool steps are supported"
             )
 
-        current_df = execute_tool_step(current_df, step)
+        current_df = execute_tool_step(
+            current_df, step, profile, execution_log
+        )
 
-    return current_df
+    return {
+        "df": current_df,
+        "log": execution_log,
+    }

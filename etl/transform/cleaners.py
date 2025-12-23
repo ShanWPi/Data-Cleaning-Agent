@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import List, Optional
+import re
 
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -16,27 +17,47 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 def standardize_missing(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    missing_markers = ["", "na", "n/a", "null", "none", "nan", "?"]
+
+    missing_markers = {
+        "": pd.NA,
+        " ": pd.NA,
+        "null": pd.NA,
+        "n/a": pd.NA,
+        "na": pd.NA,
+    }
 
     for col in df.columns:
-        df[col] = (
-            df[col]
-            .replace(missing_markers, pd.NA)
-        )
+        if df[col].dtype == object:
+            df[col] = (
+                df[col]
+                .str.strip()
+                .str.lower()
+                .replace(missing_markers)
+            )
 
     return df
 
 
 def trim_whitespace(
     df: pd.DataFrame,
-    columns: Optional[List[str]] = None
+    column: Optional[str] = None,
+    columns: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     df = df.copy()
 
-    target_cols = columns if columns else df.select_dtypes(include="object").columns
+    if column:
+        target_cols = [column]
+    elif columns:
+        target_cols = columns
+    else:
+        target_cols = df.select_dtypes(include="object").columns
 
     for col in target_cols:
-        df[col] = df[col].astype(str).str.strip()
+        if col in df.columns:
+            df[col] = df[col].where(
+                df[col].isna(),
+                df[col].str.strip()
+            )
 
     return df
 
@@ -46,6 +67,9 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def convert_numeric(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    if column not in df.columns:
+        return df
+
     df = df.copy()
     df[column] = pd.to_numeric(df[column], errors="coerce")
     return df
@@ -54,4 +78,39 @@ def convert_numeric(df: pd.DataFrame, column: str) -> pd.DataFrame:
 def parse_datetime(df: pd.DataFrame, column: str) -> pd.DataFrame:
     df = df.copy()
     df[column] = pd.to_datetime(df[column], errors="coerce")
+    return df
+
+def drop_column(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    if column not in df.columns:
+        return df
+    return df.drop(columns=[column])
+
+import re
+
+def normalize_currency(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    if column not in df.columns:
+        return df
+
+    df = df.copy()
+    df[column] = (
+        df[column]
+        .astype(str)
+        .str.replace(r"[^\d\.]", "", regex=True)
+    )
+
+    df[column] = pd.to_numeric(df[column], errors="coerce")
+    return df
+
+def normalize_percentage(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    if column not in df.columns:
+        return df
+
+    df = df.copy()
+    df[column] = (
+        df[column]
+        .astype(str)
+        .str.replace("%", "", regex=False)
+    )
+
+    df[column] = pd.to_numeric(df[column], errors="coerce") / 100
     return df
