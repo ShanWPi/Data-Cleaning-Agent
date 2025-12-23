@@ -2,7 +2,7 @@ import json
 import os
 from typing import Dict, Any, List, Optional
 
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -89,20 +89,25 @@ Generate a minimal, safe cleaning plan.
 """
 
 # ======================================================
-# GROQ CLIENT
+# OpenAI Client
 # ======================================================
 
-def get_groq_client() -> Groq:
-    api_key = os.getenv("GROQ_API_KEY")
+def get_openai_key() -> str:
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("GROQ_API_KEY not set")
-    return Groq(api_key=api_key)
+        raise EnvironmentError("OPENAI_API_KEY not set")
+    return api_key
 
-def call_groq(system_prompt: str, user_prompt: str) -> str:
-    client = get_groq_client()
+
+def call_openai(system_prompt: str, user_prompt: str) -> str:
+    api_key = get_openai_key()
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    client = OpenAI(api_key=api_key)
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -111,7 +116,24 @@ def call_groq(system_prompt: str, user_prompt: str) -> str:
         max_tokens=800,
     )
 
-    return response.choices[0].message.content.strip()
+    # extract content
+    try:
+        content = response.choices[0].message.content
+    except Exception:
+        try:
+            content = response["choices"][0]["message"]["content"]
+        except Exception:
+            raise ValueError(f"OpenAI returned no content: {response}")
+
+    return content.strip()
+
+
+def call_groq(system_prompt: str, user_prompt: str) -> str:
+    """Compatibility wrapper for older code expecting `call_groq()`.
+
+    Delegates to `call_openai`.
+    """
+    return call_openai(system_prompt, user_prompt)
 
 # ======================================================
 # VALIDATION
