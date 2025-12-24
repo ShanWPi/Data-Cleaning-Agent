@@ -1,5 +1,8 @@
+import logging
 import pandas as pd
 from typing import Dict, Any, Optional, Set
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationError(Exception):
@@ -10,6 +13,7 @@ def _get_planned_dropped_columns(plan: Optional[Dict[str, Any]]) -> Set[str]:
     """
     Extracts columns that were explicitly planned to be dropped.
     """
+    logger.debug("Entering _get_planned_dropped_columns")
     if not plan or "steps" not in plan:
         return set()
 
@@ -39,6 +43,7 @@ def validate_transformation(
     - Protects against destructive transformations
     """
 
+    logger.debug("Entering validate_transformation")
     # ---------------------------
     # 0. Allow no-op transformations
     # ---------------------------
@@ -98,3 +103,24 @@ def validate_transformation(
     # 5. Passed validation
     # ---------------------------
     return
+
+def sanitize_feedback(feedback: Dict[str, Any]) -> Dict[str, Any]:
+    logger.debug("Entering sanitize_feedback")
+    if not feedback:
+        return feedback
+
+    clean = dict(feedback)
+    if "execution_log" in clean:
+        clean["execution_log"] = [
+            {
+                "step": {
+                    "type": "tool",
+                    "name": s["step"]["name"],
+                    "args": s["step"].get("args", {})
+                },
+                "status": s["status"]
+            }
+            for s in clean["execution_log"]
+            if s.get("step", {}).get("name")
+        ]
+    return clean

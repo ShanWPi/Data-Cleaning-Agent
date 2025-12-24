@@ -1,9 +1,13 @@
+import logging
 import pandas as pd
 from typing import List, Optional
 import re
 
+logger = logging.getLogger(__name__)
+
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    logger.debug("Entering clean_column_names")
     df = df.copy()
     df.columns = (
         df.columns
@@ -16,6 +20,7 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def standardize_missing(df: pd.DataFrame) -> pd.DataFrame:
+    logger.debug("Entering standardize_missing")
     df = df.copy()
 
     missing_markers = {
@@ -43,6 +48,7 @@ def trim_whitespace(
     column: Optional[str] = None,
     columns: Optional[List[str]] = None,
 ) -> pd.DataFrame:
+    logger.debug("Entering trim_whitespace: column=%s columns=%s", column, columns)
     df = df.copy()
 
     if column:
@@ -63,10 +69,12 @@ def trim_whitespace(
 
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    logger.debug("Entering remove_duplicates")
     return df.drop_duplicates().reset_index(drop=True)
 
 
 def convert_numeric(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    logger.debug("Entering convert_numeric: column=%s", column)
     if column not in df.columns:
         return df
 
@@ -76,11 +84,13 @@ def convert_numeric(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 
 def parse_datetime(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    logger.debug("Entering parse_datetime: column=%s", column)
     df = df.copy()
     df[column] = pd.to_datetime(df[column], errors="coerce")
     return df
 
 def drop_column(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    logger.debug("Entering drop_column: column=%s", column)
     if column not in df.columns:
         return df
     return df.drop(columns=[column])
@@ -91,6 +101,7 @@ def normalize_currency(df: pd.DataFrame, column: str) -> pd.DataFrame:
     if column not in df.columns:
         return df
 
+    logger.debug("Entering normalize_currency: column=%s", column)
     df = df.copy()
     df[column] = (
         df[column]
@@ -102,6 +113,7 @@ def normalize_currency(df: pd.DataFrame, column: str) -> pd.DataFrame:
     return df
 
 def normalize_percentage(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    logger.debug("Entering normalize_percentage: column=%s", column)
     if column not in df.columns:
         return df
 

@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 from typing import Dict, Any, List, Optional
 from etl.llm.json_utils import parse_llm_json
+
+logger = logging.getLogger(__name__)
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -76,6 +79,7 @@ def build_user_prompt(
     profile_json: str,
     feedback: Optional[Dict[str, Any]] = None
 ) -> str:
+    logger.debug("Entering build_user_prompt")
     feedback_block = ""
     if feedback:
         feedback_block = f"""
@@ -120,6 +124,7 @@ Generate a minimal, safe, justified cleaning plan.
 # ======================================================
 
 def get_openai_key() -> str:
+    logger.debug("Entering get_openai_key")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY not set")
@@ -127,6 +132,7 @@ def get_openai_key() -> str:
 
 
 def call_openai(system_prompt: str, user_prompt: str) -> str:
+    logger.debug("Entering call_openai")
     api_key = get_openai_key()
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -160,6 +166,7 @@ def call_groq(system_prompt: str, user_prompt: str) -> str:
 
     Delegates to `call_openai`.
     """
+    logger.debug("Entering call_groq")
     return call_openai(system_prompt, user_prompt)
 
 # ======================================================
@@ -170,9 +177,11 @@ def validate_plan(plan: Dict[str, Any]) -> None:
     if "steps" not in plan or not isinstance(plan["steps"], list):
         raise ValueError("Plan must contain a 'steps' list")
 
-    for step in plan["steps"]:
+    for i, step in enumerate(plan["steps"]):
         if step.get("type") != "tool":
-            raise ValueError("Only tool steps are allowed")
+            raise ValueError(
+                f"Invalid step type at index {i}: {step.get('type')}"
+            )
 
         name = step.get("name")
         args = step.get("args")
@@ -183,18 +192,6 @@ def validate_plan(plan: Dict[str, Any]) -> None:
         if not isinstance(args, dict):
             raise ValueError("Tool args must be a dict")
 
-        # Enforce required args
-        if name in {
-            "trim_whitespace",
-            "convert_numeric",
-            "parse_datetime",
-            "drop_column",
-            "normalize_currency",
-            "normalize_percentage",
-        }:
-            if "column" not in args:
-                raise ValueError(f"{name} requires 'column' argument")
-
 # ======================================================
 # PUBLIC API
 # ======================================================
@@ -204,6 +201,7 @@ def generate_plan(
     feedback: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
 
+    logger.debug("Entering generate_plan")
     profile_json = json.dumps(profile, indent=2)
 
     user_prompt = build_user_prompt(profile_json, feedback)
@@ -211,6 +209,9 @@ def generate_plan(
 
     try:
         plan = parse_llm_json(llm_output)
+        for step in plan.get("steps", []):
+            if "type" not in step:
+                step["type"] = "tool"
     except json.JSONDecodeError:
         raise ValueError(f"LLM returned invalid JSON:\n{llm_output}")
 

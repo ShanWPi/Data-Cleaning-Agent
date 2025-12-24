@@ -1,5 +1,8 @@
+import logging
 import json
 import ast
+
+logger = logging.getLogger(__name__)
 
 
 class LLMJSONError(Exception):
@@ -12,6 +15,7 @@ def parse_llm_json(text: str) -> dict:
     Falls back to safe Python literal parsing.
     """
 
+    logger.debug("Entering parse_llm_json")
     # 1️⃣ Strict JSON
     try:
         return json.loads(text)

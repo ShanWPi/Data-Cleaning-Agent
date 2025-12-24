@@ -1,6 +1,9 @@
+import logging
 import pandas as pd
 import chardet
 from typing import Tuple, Dict
+
+logger = logging.getLogger(__name__)
 
 
 class CSVReadError(Exception):
@@ -12,6 +15,7 @@ def detect_encoding(file_path: str, sample_size: int = 10000) -> str:
     """
     Detect file encoding using chardet.
     """
+    logger.debug("Entering detect_encoding: file_path=%s", file_path)
     with open(file_path, "rb") as f:
         raw = f.read(sample_size)
 
@@ -28,6 +32,7 @@ def detect_delimiter(file_path: str, encoding: str) -> str:
     """
     Detect delimiter by sampling the first line.
     """
+    logger.debug("Entering detect_delimiter: file_path=%s encoding=%s", file_path, encoding)
     with open(file_path, "r", encoding=encoding, errors="ignore") as f:
         line = f.readline()
 
@@ -50,6 +55,7 @@ def read_csv_safe(
     Safely read a CSV file and return DataFrame + metadata.
     """
 
+    logger.debug("Entering read_csv_safe: file_path=%s", file_path)
     metadata = {
         "file_path": file_path,
         "encoding": None,
@@ -74,6 +80,7 @@ def read_csv_safe(
         bad_lines = []
 
         def bad_line_handler(line):
+            logger.debug("Bad line encountered: %s", line)
             bad_lines.append(line)
             return None
 

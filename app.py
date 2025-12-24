@@ -1,3 +1,4 @@
+import logging
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 import os
 from etl.pipeline import run_pipeline
@@ -13,16 +14,21 @@ ALLOWED_EXTENSIONS = {"csv"}
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "dev-secret")
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def allowed_file(filename: str) -> bool:
+    logger.debug("Entering allowed_file: %s", filename)
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    logger.debug("Entering index: method=%s", request.method)
     if request.method == "POST":
         # Case A: second-form submission (cleaning request) - uses uploaded_filename
         uploaded_filename = request.form.get("uploaded_filename")
@@ -98,6 +104,7 @@ def index():
 
 @app.route("/download/<filename>")
 def download(filename: str):
+    logger.debug("Entering download: filename=%s", filename)
     path = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(path):
         return send_file(path, as_attachment=True)
@@ -114,6 +121,7 @@ def apply_selective_cleaners(input_path: str, output_path: str, tools_list: list
 
     Returns a history list of steps applied.
     """
+    logger.debug("Entering apply_selective_cleaners: input=%s output=%s tools=%s", input_path, output_path, tools_list)
     df, _ = read_csv_safe(input_path)
     history = []
 

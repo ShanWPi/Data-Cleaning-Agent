@@ -1,5 +1,8 @@
+import logging
 from typing import Dict, Any, Tuple
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def is_tool_safe(
@@ -11,6 +14,7 @@ def is_tool_safe(
     Returns (is_safe, reason_if_not_safe)
     """
 
+    logger.debug("Entering is_tool_safe: step=%s", step)
     tool = step.get("name")
     args = step.get("args", {})
     col = args.get("column")

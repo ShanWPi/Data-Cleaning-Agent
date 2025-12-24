@@ -1,6 +1,8 @@
+import logging
 from typing import Dict, Any
 import pandas as pd
 
+from etl.validate.validator import sanitize_feedback
 from etl.extract.reader import read_csv_safe
 from etl.profile.profiler import profile_dataframe
 from etl.profile.serializer import ensure_json_serializable
@@ -19,6 +21,9 @@ def run_pipeline(
     max_iterations: int = 3
 ) -> Dict[str, Any]:
 
+    logger = logging.getLogger(__name__)
+    logger.debug("Entering run_pipeline: input=%s output=%s max_iter=%s", input_csv_path, output_csv_path, max_iterations)
+
     df_raw, read_meta = read_csv_safe(input_csv_path)
     df_current = df_raw.copy()
     history = []
@@ -27,8 +32,11 @@ def run_pipeline(
 
     for iteration in range(1, max_iterations + 1):
 
-        feedback = history[-1] if history else None
+        feedback = sanitize_feedback(history[-1]) if history else None
         plan = generate_plan(profile, feedback)
+        print("RAW PLAN:", plan)
+        if not plan.get("steps"):
+            raise PipelineError("Planner returned empty or invalid steps")
         if not plan["steps"]:
             return {
                 "status": "success",

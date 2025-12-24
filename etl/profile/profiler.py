@@ -1,8 +1,11 @@
+import logging
 import pandas as pd
 import numpy as np
 import re
 import warnings
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 
 # =====================================================
@@ -29,6 +32,7 @@ BOOLEAN_SET = {"true", "false", "yes", "no", "y", "n", "1", "0"}
 # =====================================================
 
 def numeric_string_ratio(series: pd.Series) -> float:
+    logger.debug("Entering numeric_string_ratio")
     non_null = series.dropna().astype(str)
     if non_null.empty:
         return 0.0
@@ -36,6 +40,7 @@ def numeric_string_ratio(series: pd.Series) -> float:
 
 
 def boolean_string_ratio(series: pd.Series) -> float:
+    logger.debug("Entering boolean_string_ratio")
     non_null = series.dropna().astype(str).str.lower()
     if non_null.empty:
         return 0.0
@@ -43,16 +48,19 @@ def boolean_string_ratio(series: pd.Series) -> float:
 
 
 def contains_currency(series: pd.Series) -> bool:
+    logger.debug("Entering contains_currency")
     non_null = series.dropna().astype(str)
     return bool(non_null.str.contains(CURRENCY_REGEX).any())
 
 
 def contains_percent(series: pd.Series) -> bool:
+    logger.debug("Entering contains_percent")
     non_null = series.dropna().astype(str)
     return bool(non_null.str.contains(PERCENT_REGEX).any())
 
 
 def datetime_string_ratio(series: pd.Series) -> float:
+    logger.debug("Entering datetime_string_ratio")
     non_null = series.dropna().astype(str)
     if non_null.empty:
         return 0.0
@@ -65,6 +73,7 @@ def datetime_string_ratio(series: pd.Series) -> float:
 
 
 def datetime_parse_ratio(series: pd.Series) -> float:
+    logger.debug("Entering datetime_parse_ratio")
     non_null = series.dropna()
     if non_null.empty:
         return 0.0
@@ -77,6 +86,7 @@ def datetime_parse_ratio(series: pd.Series) -> float:
 
 
 def is_index_like(series: pd.Series, row_count: int) -> bool:
+    logger.debug("Entering is_index_like")
     non_null = series.dropna()
     if len(non_null) != row_count:
         return False
@@ -93,6 +103,7 @@ def is_index_like(series: pd.Series, row_count: int) -> bool:
 
 
 def text_length_stats(series: pd.Series) -> Dict[str, float]:
+    logger.debug("Entering text_length_stats")
     non_null = series.dropna().astype(str)
     if non_null.empty:
         return {}
@@ -104,6 +115,7 @@ def text_length_stats(series: pd.Series) -> Dict[str, float]:
 
 
 def top_k_values(series: pd.Series, k: int = 5) -> List[str]:
+    logger.debug("Entering top_k_values")
     non_null = series.dropna()
     if non_null.empty:
         return []
@@ -111,6 +123,7 @@ def top_k_values(series: pd.Series, k: int = 5) -> List[str]:
 
 
 def numeric_distribution(series: pd.Series) -> Dict[str, float]:
+    logger.debug("Entering numeric_distribution")
     clean = series.dropna().astype(float)
     if clean.empty:
         return {}
@@ -141,6 +154,7 @@ def infer_semantic_type(
     dt_parse_ratio: float,
     dt_string_ratio: float
 ) -> str:
+    logger.debug("Entering infer_semantic_type")
     non_null = series.dropna()
 
     if non_null.empty:
@@ -178,6 +192,7 @@ def infer_semantic_type(
 # =====================================================
 
 def profile_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
+    logger.debug("Entering profile_dataframe")
     profile: Dict[str, Any] = {}
 
     row_count = len(df)

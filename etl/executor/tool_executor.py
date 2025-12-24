@@ -1,8 +1,11 @@
+import logging
 import pandas as pd
 from typing import Dict, Any, List
 
 from etl.transform import cleaners
 from etl.executor.safety import is_tool_safe
+
+logger = logging.getLogger(__name__)
 
 
 # 🔒 Tool registry (single source of truth)
@@ -33,6 +36,7 @@ def execute_tool_step(
     Executes a single tool step with safety checks.
     """
 
+    logger.debug("Entering execute_tool_step")
     tool_name = step.get("name")
     args = step.get("args", {})
 
@@ -79,6 +83,7 @@ def execute_plan(
     Executes all tool steps in sequence with safety checks.
     """
 
+    logger.debug("Entering execute_plan")
     if "steps" not in plan:
         raise ToolExecutionError("Plan has no steps")
 
@@ -86,6 +91,8 @@ def execute_plan(
     execution_log: List[Dict[str, Any]] = []
 
     for idx, step in enumerate(plan["steps"], start=1):
+        if "type" not in step and "name" in step:
+            step["type"] = "tool"
         if step.get("type") != "tool":
             raise ToolExecutionError(
                 f"Step {idx}: only tool steps are supported"

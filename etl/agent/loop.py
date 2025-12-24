@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 import pandas as pd
 
+from etl.validate.validator import sanitize_feedback
 from etl.profile.profiler import profile_dataframe
 from etl.profile.serializer import ensure_json_serializable
 from etl.llm.planner import generate_plan
@@ -30,7 +31,7 @@ def run_agent_loop(
 
         plan = generate_plan(
             profile=profile,
-            feedback=history[-1] if history else None
+            feedback = sanitize_feedback(history[-1]) if history else None
         )
 
         try:
